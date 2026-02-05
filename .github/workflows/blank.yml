@@ -8,63 +8,104 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  ci:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Detect and set up Node if package.json exists
+      # -----------------------------
+      # Node.js Pipeline (auto-detect)
+      # -----------------------------
+      - name: Detect Node project
+        id: node_detect
+        run: |
+          if [ -f "package.json" ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Node.js
-        if: exists('package.json')
+        if: steps.node_detect.outputs.found == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
           cache: 'npm'
 
       - name: Install Node dependencies
-        if: exists('package.json')
+        if: steps.node_detect.outputs.found == 'true'
         run: npm install
 
       - name: Run Node tests
-        if: exists('package.json')
+        if: steps.node_detect.outputs.found == 'true'
         run: npm test --if-present
 
-      # Detect and set up Python if requirements.txt exists
+      # -----------------------------
+      # Python Pipeline (auto-detect)
+      # -----------------------------
+      - name: Detect Python project
+        id: py_detect
+        run: |
+          if [ -f "requirements.txt" ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Set up Python
-        if: exists('requirements.txt')
+        if: steps.py_detect.outputs.found == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Install Python dependencies
-        if: exists('requirements.txt')
+        if: steps.py_detect.outputs.found == 'true'
         run: pip install -r requirements.txt
 
       - name: Run Python tests
-        if: exists('requirements.txt')
+        if: steps.py_detect.outputs.found == 'true'
         run: pytest || echo "No Python tests found"
 
-      # Validate .es artifacts
-      - name: Validate .es files
+      # -----------------------------
+      # .es Artifact Validation
+      # -----------------------------
+      - name: Validate .es artifacts
         run: |
           echo "Validating .es artifacts..."
-          find . -name "*.es" -type f -print0 | while IFS= read -r -d '' file; do
+          shopt -s nullglob
+          files=( **/*.es )
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No .es files found."
+            exit 0
+          fi
+
+          for file in "${files[@]}"; do
             echo "Checking $file"
-            # Placeholder for your validator
-            # Replace with: python tools/validate_es.py "$file"
+            # Replace this with your real validator when ready
             if ! grep -q "artifact" "$file"; then
               echo "::error file=$file::Invalid .es structure"
               exit 1
             fi
           done
 
-      # Build artifacts (optional)
+      # -----------------------------
+      # Build Step (optional)
+      # -----------------------------
       - name: Build project
         run: |
-          echo "Building project..."
-          echo "Add build steps here if needed."
+          echo "Running build step..."
+          if [ -f "package.json" ]; then
+            npm run build --if-present
+          elif [ -f "Makefile" ]; then
+            make
+          else
+            echo "No build step defined."
+          fi
 
+      # -----------------------------
+      # CI Summary
+      # -----------------------------
       - name: Summary
-        run: echo "CI pipeline completed successfully."
+        run: echo "Epic Algo Library CI completed successfully."
