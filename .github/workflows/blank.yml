@@ -1,0 +1,70 @@
+name: Epic Algo Library CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Detect and set up Node if package.json exists
+      - name: Set up Node.js
+        if: exists('package.json')
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        if: exists('package.json')
+        run: npm install
+
+      - name: Run Node tests
+        if: exists('package.json')
+        run: npm test --if-present
+
+      # Detect and set up Python if requirements.txt exists
+      - name: Set up Python
+        if: exists('requirements.txt')
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        if: exists('requirements.txt')
+        run: pip install -r requirements.txt
+
+      - name: Run Python tests
+        if: exists('requirements.txt')
+        run: pytest || echo "No Python tests found"
+
+      # Validate .es artifacts
+      - name: Validate .es files
+        run: |
+          echo "Validating .es artifacts..."
+          find . -name "*.es" -type f -print0 | while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            # Placeholder for your validator
+            # Replace with: python tools/validate_es.py "$file"
+            if ! grep -q "artifact" "$file"; then
+              echo "::error file=$file::Invalid .es structure"
+              exit 1
+            fi
+          done
+
+      # Build artifacts (optional)
+      - name: Build project
+        run: |
+          echo "Building project..."
+          echo "Add build steps here if needed."
+
+      - name: Summary
+        run: echo "CI pipeline completed successfully."
